@@ -1,8 +1,3 @@
-# -*- coding: utf-8 -*-
-# @Time : 2023/11/30 17:29
-# @Author : Wang Hui
-# @File : news_encoder_new
-# @Project : GLORY
 import copy
 
 import torch
@@ -33,7 +28,7 @@ class NewsEncoder(nn.Module):
             self.word_encoder = nn.Embedding(glove_emb + 1, 300, padding_idx=0)
             nn.init.uniform_(self.word_encoder.weight, -1.0, 1.0)
 
-        self.view_size = [cfg.model.title_size, cfg.model.abstract_size]
+        self.view_size = [cfg.model.title_size, cfg.model.abstract_size]  # [30,50]
 
         self.attention = Sequential('x, mask', [
             (nn.Dropout(p=cfg.dropout_probability), 'x -> x'),
@@ -45,14 +40,14 @@ class NewsEncoder(nn.Module):
             nn.LayerNorm(self.news_dim),
             nn.Dropout(p=cfg.dropout_probability),
 
-            (AttentionPooling(self.news_dim,
+            (AttentionPooling(self.news_dim,  # 400
                               cfg.model.attention_hidden_dim), 'x,mask -> x'),
             nn.LayerNorm(self.news_dim),
             # nn.Linear(self.news_dim, self.news_dim),
             # nn.LeakyReLU(0.2),
         ])
 
-    def forward(self, news_input, mask=None):
+    def forward(self, news_input, entity_input, mask=None):
         """
         Args:
             news_input:  [batch_size, news_num, total_input]  eg. [64,50,82] [64,50,96]
@@ -64,12 +59,14 @@ class NewsEncoder(nn.Module):
         num_news = news_input.shape[1]
 
         # [batch_size * news_num, view_size, word_emb_dim]
-        title_input, _, _, _, _ = news_input.split([self.view_size[0], 5, 1, 1, 1], dim=-1)
+        title_input, _, _, _, _ = news_input.split([self.view_size[0], 5, 1, 1, 1],
+                                                   dim=-1)  # title_input.shape = [1,4737,30]     ||    [8,5,30]
 
-        title_word_emb = self.word_encoder(title_input.long().view(-1, self.view_size[0]))
+        title_word_emb = self.word_encoder(title_input.long().view(-1, self.view_size[
+            0]))  # title_word_emb.shape = [4737,30,300]      ||    [40,30,300]
 
-        total_word_emb = title_word_emb
+        total_word_emb = torch.cat((title_word_emb, entity_input), dim=-2)  # 将实体和新闻embedding拼接在一起
 
-        result = self.attention(total_word_emb, mask)
+        result = self.attention(total_word_emb, mask)  # [40,400]
 
         return result.view(batch_size, num_news, self.news_dim)  # [batch, num_news, news_dim]
