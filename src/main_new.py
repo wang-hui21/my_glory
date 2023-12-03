@@ -97,7 +97,7 @@ def val(model, local_rank, cfg):
     dataloader = load_data(cfg, mode='val', model=model, local_rank=local_rank)
     tasks = []
     with torch.no_grad():
-        for cnt, (subgraph, mappings, clicked_entity, candidate_input, candidate_entity, entity_mask, labels) \
+        for cnt, (subgraph, mappings, candidate_input, candidate_entity, entity_mask, labels) \
                 in enumerate(tqdm(dataloader,
                                   total=int(cfg.dataset.val_len / cfg.gpu_num),
                                   desc=f"[{local_rank}] Validating")):
@@ -106,7 +106,7 @@ def val(model, local_rank, cfg):
             entity_mask = entity_mask.to(local_rank, non_blocking=True)
             clicked_entity = clicked_entity.to(local_rank, non_blocking=True)
 
-            scores = model.module.validation_process(subgraph, mappings, clicked_entity, candidate_emb,
+            scores = model.module.validation_process(subgraph, mappings, candidate_emb,
                                                      candidate_entity, entity_mask)
 
             tasks.append((labels.tolist(), scores))
