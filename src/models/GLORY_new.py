@@ -136,41 +136,67 @@ class GLORY(nn.Module):
 
         return loss, score
 
-    def validation_process(self, subgraph, mappings, clicked_entity, candidate_emb, candidate_entity, entity_mask):
+    def validation_process(self, subgraph, mappings, candidate_news, candidate_entity, entity_mask):
 
-        batch_size, num_news, news_dim = 1, len(mappings), candidate_emb.shape[-1]
+        batch_size, num_news, token_dim = 1, len(mappings), candidate_news.shape[-1]
+        clicked_entity = subgraph.x[mappings, -8:-3]
 
-        title_graph_emb = self.global_news_encoder(subgraph.x, subgraph.edge_index)
-        clicked_graph_emb = title_graph_emb[mappings, :].view(batch_size, num_news, news_dim)
-        clicked_origin_emb = subgraph.x[mappings, :].view(batch_size, num_news, news_dim)
+        x_flatten = subgraph.x.view(1, -1, token_dim)
+
+        entity = self.local_entity_embedding(clicked_entity, None)  # 将所有实体转换为embedding  [4737,5,100]
+
+        # 创建一个新的形状为 [40, 5, 300] 的零张量
+        # entity_embedding = torch.zeros(entity.shape[0], entity.shape[1], 200).to(0, non_blocking=True)
+
+        # 将原始数据复制到新的张量中
+        entity = torch.cat((entity, entity, entity), dim=-1)
+
+        # entity_embedding = entity.view(entity.shape[0], entity.shape[1], 300)            # 将实体embedding维度转换为和新闻相同的维度
+        # subgraph.x[:, -8:-3].shape = [4737,5]
+        # News Encoder + GCN
+
+        x_encoded = self.local_news_encoder(x_flatten, entity).view(-1, self.news_dim)  # x_encoded = [4737,400]
+
+        graph_emb = self.global_news_encoder(x_encoded, subgraph.edge_index)
+
+
+        clicked_graph_emb = graph_emb[mappings, :].view(batch_size, num_news, self.news_dim)
+        clicked_origin_emb = x_encoded[mappings, :].view(batch_size, num_news, self.news_dim)
 
         # --------------------Attention Pooling
-        if self.use_entity:
-            clicked_entity_emb = self.local_entity_encoder(clicked_entity.unsqueeze(0), None)
-        else:
-            clicked_entity_emb = None
+        # if self.use_entity:
+        #     clicked_entity_emb = self.local_entity_encoder(clicked_entity.unsqueeze(0), None)
+        # else:
+        #     clicked_entity_emb = None
 
-        clicked_final_emb = self.click_encoder(clicked_origin_emb, clicked_graph_emb, clicked_entity_emb)
-
+        # clicked_final_emb = self.click_encoder(clicked_origin_emb, clicked_graph_emb, clicked_entity_emb)
+        clicked_final_emb = torch.cat((clicked_origin_emb, clicked_graph_emb), dim=-1)
         user_emb = self.user_encoder(clicked_final_emb)  # [1, 400]
 
         # ----------------------------------------- Candidate------------------------------------
 
-        if self.use_entity:
-            cand_entity_input = candidate_entity.unsqueeze(0)
-            entity_mask = entity_mask.unsqueeze(0)
-            origin_entity, neighbor_entity = cand_entity_input.split(
-                [self.cfg.model.entity_size, self.cfg.model.entity_size * self.cfg.model.entity_neighbors], dim=-1)
+        origin_entity, neighbor_entity = candidate_entity.split(
+            [self.cfg.model.entity_size, self.cfg.model.entity_size * self.cfg.model.entity_neighbors], dim=-1)
 
-            cand_origin_entity_emb = self.local_entity_encoder(origin_entity, None)
-            cand_neighbor_entity_emb = self.global_entity_encoder(neighbor_entity, entity_mask)
+        entity_emb = self.local_entity_embedding(origin_entity, None)
 
-        else:
-            cand_origin_entity_emb = None
-            cand_neighbor_entity_emb = None
+        entity_embedding = entity_emb.view(-1, entity_emb.shape[2], entity_emb.shape[3])  # 将实体embedding维度设置为和新闻相同
 
-        cand_final_emb = self.candidate_encoder(candidate_emb.unsqueeze(0), cand_origin_entity_emb,
-                                                cand_neighbor_entity_emb)
+        # entity_dim = torch.zeros(entity_embedding.shape[0], entity_embedding.shape[1], 200).to(0, non_blocking=True)
+
+        # 将原始数据复制到新的张量中
+        entity_embedding = torch.cat((entity_embedding, entity_embedding, entity_embedding), dim=-1)
+
+        cand_neighbor_entity_emb = self.global_entity_encoder(neighbor_entity, entity_mask)
+
+        # cand_entity_emb = self.entity_encoder(candidate_entity, entity_mask).view(batch_size, -1, self.news_dim) # [8, 5, 400]
+
+
+
+        cand_title_emb = self.local_news_encoder(candidate_news, entity_embedding)
+
+        cand_final_emb = torch.cat((cand_neighbor_entity_emb, cand_title_emb), dim=-1)  # 将得到的embedding拼起来
+
         # ---------------------------------------------------------------------------------------
         # ----------------------------------------- Score ------------------------------------
         scores = self.click_predictor(cand_final_emb, user_emb).view(-1).cpu().tolist()

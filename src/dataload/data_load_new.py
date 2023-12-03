@@ -69,22 +69,22 @@ def load_data(cfg, mode='train', model=None, local_rank=0):
         return dataloader
     elif mode in ['val', 'test']:
         # convert the news to embeddings
-        news_dataset = NewsDataset(news_input)
-        news_dataloader = DataLoader(news_dataset,
-                                     batch_size=int(cfg.batch_size * cfg.gpu_num),
-                                     num_workers=cfg.num_workers)
-
-        stacked_news = []
-        with torch.no_grad():
-            for news_batch in tqdm(news_dataloader, desc=f"[{local_rank}] Processing validation News Embedding"):
-                if cfg.model.use_graph:
-                    batch_emb = model.module.local_news_encoder(news_batch.long().unsqueeze(0).to(local_rank)).squeeze(
-                        0).detach()
-                else:
-                    batch_emb = model.module.local_news_encoder(news_batch.long().unsqueeze(0).to(local_rank)).squeeze(
-                        0).detach()
-                stacked_news.append(batch_emb)
-        news_emb = torch.cat(stacked_news, dim=0).cpu().numpy()
+        # news_dataset = NewsDataset(news_input)
+        # news_dataloader = DataLoader(news_dataset,
+        #                              batch_size=int(cfg.batch_size * cfg.gpu_num),
+        #                              num_workers=cfg.num_workers)
+        #
+        # stacked_news = []
+        # with torch.no_grad():
+        #     for news_batch in tqdm(news_dataloader, desc=f"[{local_rank}] Processing validation News Embedding"):
+        #         if cfg.model.use_graph:
+        #             batch_emb = model.module.local_news_encoder(news_batch.long().unsqueeze(0).to(local_rank)).squeeze(
+        #                 0).detach()
+        #         else:
+        #             batch_emb = model.module.local_news_encoder(news_batch.long().unsqueeze(0).to(local_rank)).squeeze(
+        #                 0).detach()
+        #         stacked_news.append(batch_emb)
+        # news_emb = torch.cat(stacked_news, dim=0).cpu().numpy()
 
         if cfg.model.use_graph:
             news_graph = torch.load(Path(data_dir[mode]) / "nltk_news_graph.pt")
@@ -107,12 +107,11 @@ def load_data(cfg, mode='train', model=None, local_rank=0):
                 dataset = ValidGraphDataset(
                     filename=Path(data_dir[mode]) / f"behaviors_np{cfg.npratio}_{local_rank}.tsv",
                     news_index=news_index,
-                    news_input=news_emb,
+                    news_input=news_input,
                     local_rank=local_rank,
                     cfg=cfg,
                     neighbor_dict=news_neighbors_dict,
                     news_graph=news_graph,
-                    news_entity=news_input[:, -8:-3],
                     entity_neighbors=entity_neighbors
                 )
 
