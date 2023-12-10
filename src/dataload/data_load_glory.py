@@ -24,6 +24,7 @@ def load_data(cfg, mode='train', model=None, local_rank=0):
 
     news_input = pickle.load(open(Path(data_dir[mode]) / "nltk_token_news.bin", "rb"))
 
+    news_graph = torch.load(Path(data_dir[mode]) / "nltk_news_graph.pt")
 
     news_dataset = NewsDataset(news_input)
     news_dataloader = DataLoader(news_dataset,
@@ -41,10 +42,13 @@ def load_data(cfg, mode='train', model=None, local_rank=0):
                     0).detach()
             stacked_news.append(batch_emb)
     news_emb = torch.cat(stacked_news, dim=0).cpu().numpy()             # 所有新闻的embedding
+
+    glory_emb = model.module.global_news_encoder(news_emb, news_graph.edge_index)             # 需要确保news_emb维度为两维
+
     if mode == 'train':
         target_file = Path(data_dir[mode]) / f"behaviors_np{cfg.npratio}_{local_rank}.tsv"
         if cfg.model.use_graph:
-            news_graph = torch.load(Path(data_dir[mode]) / "nltk_news_graph.pt")
+
 
             if cfg.model.directed is False:
                 news_graph.edge_index, news_graph.edge_attr = to_undirected(news_graph.edge_index, news_graph.edge_attr)
@@ -68,7 +72,7 @@ def load_data(cfg, mode='train', model=None, local_rank=0):
                 neighbor_dict=news_neighbors_dict,
                 news_graph=news_graph,
                 entity_neighbors=entity_neighbors,
-                news_emb=news_emb
+                news_emb=glory_emb
             )
             dataloader = DataLoader(dataset, batch_size=None)
 
@@ -131,7 +135,7 @@ def load_data(cfg, mode='train', model=None, local_rank=0):
                     neighbor_dict=news_neighbors_dict,
                     news_graph=news_graph,
                     entity_neighbors=entity_neighbors,
-                    news_emb=news_emb
+                    news_emb=glory_emb
                 )
 
             dataloader = DataLoader(dataset, batch_size=None)

@@ -34,19 +34,21 @@ def train(model, optimizer, scaler, scheduler, dataloader, local_rank, cfg, earl
     sum_loss = torch.zeros(1).to(local_rank)
     sum_auc = torch.zeros(1).to(local_rank)
 
-    for cnt, (subgraph, mapping_idx, candidate_news, candidate_entity, entity_mask, labels) \
+    for cnt, (subgraph, mapping_idx, candidate_news, candidate_entity, entity_mask, newemb, labels) \
             in enumerate(tqdm(dataloader,
                               total=int(cfg.num_epochs * (cfg.dataset.pos_count // cfg.batch_size + 1)),
                               desc=f"[{local_rank}] Training"), start=1):
         subgraph = subgraph.to(local_rank, non_blocking=True)
         mapping_idx = mapping_idx.to(local_rank, non_blocking=True)
         candidate_news = candidate_news.to(local_rank, non_blocking=True)
+        newemb = newemb.to(local_rank, non_blocking=True)
+
         labels = labels.to(local_rank, non_blocking=True)
         candidate_entity = candidate_entity.to(local_rank, non_blocking=True)
         entity_mask = entity_mask.to(local_rank, non_blocking=True)
 
         with amp.autocast():
-            bz_loss, y_hat = model(subgraph, mapping_idx, candidate_news, candidate_entity, entity_mask, labels)
+            bz_loss, y_hat = model(subgraph, mapping_idx, candidate_news, candidate_entity, entity_mask, newemb, labels)
 
         # Accumulate the gradients
         scaler.scale(bz_loss).backward()
