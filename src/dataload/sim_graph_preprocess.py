@@ -262,8 +262,11 @@ def prepare_news_graph(cfg, mode='train'):
 
     # ------------------- Build Graph -------------------------------
     if mode == 'train':
-        edge_list, user_set = [], set()  # 定义边的列表和用户集合
+        edge_list, short_edges, user_set = [], [], set()  # 定义边的列表和用户集合
         num_line = len(open(behavior_path, encoding='utf-8').readlines())
+        # 利用开源项目，计算文本之间的相似度
+        ts = TextSim(lang='en', method='word2vec', model_path='GoogleNews-vectors-nega  tive300.bin')
+
         with open(behavior_path, 'r', encoding='utf-8') as f:
             for line in tqdm(f, total=num_line, desc=f"[{mode}] Processing behaviors news to News Graph"):
                 # 取出新闻内容   59398\tU21245\t11/10/2019 9:48:49 PM\tN58644 N39813 N29924 N18019 N8892 N42137 N20710 N46096 N43955 N52720 N48076 N40871 N64474 N6342 N29891 N43955 N28257 N43019 N50372 N6868 N28983 N54752\tN64542-0 N49685-0 N43073-0 N50060-1 N52446-0 N31273-0 N40495-0 N28047-0\n
@@ -278,32 +281,56 @@ def prepare_news_graph(cfg, mode='train'):
 
                 # record cnt & read path
                 history = line[3].split()
+                user_re = []
                 if len(history) > 1:
+                    for news_id in history:
+                        entity_id = news[news_id][-2]
+                        if entity_id:
+                            entity = [entity_ID[item] for item in entity_id]       # 如果实体存在，就取出实体名称
+                            entity = ','.join(entity)        # 如果有多个实体，就将其按空格连接
+                        else:
+                            entity = news[news_id][1]               # 如果不存在，就让类比代替
+                        user_re.append(entity)          # 将每个用户的实体，按顺序添加到列表中
                     long_edge = [news_dict[news_id] for news_id in
                                  history]  # 取出历史新闻的数字编号  [31529 3176 5584 30449 998....]
-                    edge_list.append(long_edge)  # 将历史列表添加到边列表中
+                    # user_re.append(user_re)
+                    # edge_list.append(long_edge)  # 将历史列表添加到边列表中
+
+                    sim = ts.get_similar_res(user_re, user_re, mutual=True)             # 生成一个长，宽都为len(user_re)的矩阵
+                    if cfg.model.use_graph_type == 0:  # 代码中默认为0
+                        for i in range(len(user_re)):
+                            for j in range(i + 1, len(user_re)):
+                                if sim[i][j] >= 0.5:            # 如果两篇文章之间的相似度大于0.5，通过long_edge取出新闻对应的序号，在两篇新闻之间建立边
+                                    short_edges.append((long_edge[i], long_edge[j]))
+                                    short_edges.append((long_edge[j], long_edge[i]))    # 建立无向边
+
+                    elif cfg.model.use_graph_type == 1:
+                        pass
+
+                    else:
+                        assert False, "Wrong"
 
         # edge count
         node_feat = nltk_token_news
         target_path = nltk_target_path
         num_nodes = len(news_dict) + 1  # number of nodes
 
-        short_edges = []
-        for edge in tqdm(edge_list, total=len(edge_list), desc=f"Processing news edge list"):  # 取出edge_list中的每一个列表
-            # Trajectory Graph
-            if cfg.model.use_graph_type == 0:  # 代码中默认为0
-                for i in range(len(edge) - 1):
-                    short_edges.append(
-                        (edge[i], edge[i + 1]))  # 从小到大连接，箭头方向暂时未知  [(31529, 3176), (3176, 5584)....] 越往后，时间越靠近，所以从前往后连接
-                    # short_edges.append((edge[i + 1], edge[i]))
-            elif cfg.model.use_graph_type == 1:
-                # Co-occurence Graph        共现图？
-                for i in range(len(edge) - 1):  # 构建方式类似于完全图，具体用来干什么暂时未知
-                    for j in range(i + 1, len(edge)):
-                        short_edges.append((edge[i], edge[j]))
-                        short_edges.append((edge[j], edge[i]))
-            else:
-                assert False, "Wrong"
+        # short_edges = []
+        # for edge in tqdm(edge_list, total=len(edge_list), desc=f"Processing news edge list"):  # 取出edge_list中的每一个列表
+        #     # Trajectory Graph
+        #     if cfg.model.use_graph_type == 0:  # 代码中默认为0
+        #         for i in range(len(edge) - 1):
+        #             short_edges.append(
+        #                 (edge[i], edge[i + 1]))  # 从小到大连接，箭头方向暂时未知  [(31529, 3176), (3176, 5584)....] 越往后，时间越靠近，所以从前往后连接
+        #             # short_edges.append((edge[i + 1], edge[i]))
+        #     elif cfg.model.use_graph_type == 1:
+        #         # Co-occurence Graph        共现图？
+        #         for i in range(len(edge) - 1):  # 构建方式类似于完全图，具体用来干什么暂时未知
+        #             for j in range(i + 1, len(edge)):
+        #                 short_edges.append((edge[i], edge[j]))
+        #                 short_edges.append((edge[j], edge[i]))
+        #     else:
+        #         assert False, "Wrong"
 
         edge_weights = Counter(short_edges)  # 统计边的权重，用字典形式存储  比如：(22621, 29991):13
         unique_edges = list(edge_weights.keys())  # 将所有的边取出来
