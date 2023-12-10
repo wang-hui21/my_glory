@@ -94,7 +94,13 @@ def train(model, optimizer, scaler, scheduler, dataloader, local_rank, cfg, earl
 
 def val(model, local_rank, cfg):
     model.eval()
-    dataloader = load_data(cfg, mode='val', model=model, local_rank=local_rank)
+
+    if cfg.load_checkpoint:
+        dataloader = load_data(cfg, mode='test', model=model, local_rank=local_rank)
+    else:
+
+        dataloader = load_data(cfg, mode='val', model=model, local_rank=local_rank)
+
     tasks = []
     with torch.no_grad():
         for cnt, (subgraph, mappings, candidate_input, candidate_entity, entity_mask, labels) \
@@ -104,7 +110,7 @@ def val(model, local_rank, cfg):
             candidate_emb = torch.FloatTensor(np.array(candidate_input)).to(local_rank, non_blocking=True)
             candidate_entity = candidate_entity.to(local_rank, non_blocking=True)
             entity_mask = entity_mask.to(local_rank, non_blocking=True)
-            clicked_entity = clicked_entity.to(local_rank, non_blocking=True)
+            # clicked_entity = clicked_entity.to(local_rank, non_blocking=True)
 
             scores = model.module.validation_process(subgraph, mappings, candidate_emb,
                                                      candidate_entity, entity_mask)
@@ -155,23 +161,37 @@ def main_worker(local_rank, cfg):
     if cfg.load_checkpoint:
         file_path = Path(f"{cfg.path.ckp_dir}/{cfg.model.model_name}_{cfg.dataset.dataset_name}_{cfg.load_mark}.pth")
         checkpoint = torch.load(file_path, map_location='cpu')
+        # map_location = {'cuda:%d' % 0: 'cuda:%d' % local_rank}
         model.load_state_dict(checkpoint['model_state_dict'])  # After Distributed
-        optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+        # optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
 
-    model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[local_rank])
-    optimizer.zero_grad(set_to_none=True)
-    scaler = amp.GradScaler()
+        model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[local_rank])
+        # optimizer.zero_grad(set_to_none=True)
+        # scaler = amp.GradScaler()
 
-    # ------------------------------------------Main Start
-    early_stopping = EarlyStopping(cfg.early_stop_patience)
+        res = val(model, local_rank, cfg)
+        print("best_auc:", res["auc"], "best_mrr:", res['mrr'],
+              "best_ndcg5:", res['ndcg5'], "best_ndcg10:", res['ndcg10'])
+    else:
+        model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[local_rank])
+        optimizer.zero_grad(set_to_none=True)
+        scaler = amp.GradScaler()
 
-    if local_rank == 0:
-        wandb.init(config=OmegaConf.to_container(cfg, resolve=True),
-                   project=cfg.logger.exp_name, name=cfg.logger.run_name)
-        print(model)
+        # ------------------------------------------Main Start
+        early_stopping = EarlyStopping(cfg.early_stop_patience)
 
-    # for _ in tqdm(range(1, cfg.num_epochs + 1), desc="Epoch"):
-    train(model, optimizer, scaler, scheduler, train_dataloader, local_rank, cfg, early_stopping)
+        if local_rank == 0:
+            wandb.init(config=OmegaConf.to_container(cfg, resolve=True),
+                       project=cfg.logger.exp_name, name=cfg.logger.run_name)
+            print(model)
+
+        # for _ in tqdm(range(1, cfg.num_epochs + 1), desc="Epoch"):
+
+        train_dataloader = load_data(cfg, mode='train', local_rank=local_rank)  # 加载训练数据
+        train(model, optimizer, scaler, scheduler, train_dataloader, local_rank, cfg, early_stopping)
+
+        # file_path=os.path.join(data_dir[mode], f'behaviors{local_rank}_embeddings.pkl')
+        # model.save_embeddings_to_file(file_path)
 
     if local_rank == 0:
         wandb.finish()
