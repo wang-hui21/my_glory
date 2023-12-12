@@ -35,11 +35,21 @@ class LSTMModel(nn.Module):
 
         # 解压缩输出序列
         output, _ = pad_packed_sequence(packed_output, batch_first=True)
-        return output
+        # 假设 output 是你从 LSTM 模型获得的输出张量
+
+        # 计算每个序列中最后一个非零时间步的索引
+        last_non_zero_index = (output != 0).sum(dim=1) - 1
+        first_element_per_batch = last_non_zero_index[:, 0]
+        # 通过索引获取最后一个非零时间步的隐藏状态
+        last_non_zero_hidden_states = torch.stack([output[i, index, :] for i, index in enumerate(first_element_per_batch)])
+
+        # last_non_zero_hidden_states 就是包含每个序列最后一个非零时间步的隐藏状态的张量
+
+        return last_non_zero_hidden_states
 
 
 # 创建模型并进行前向传播
-hidden_size = 256
+hidden_size = 400
 lstm_model = LSTMModel(embedding_dim, hidden_size)
 output_sequence = lstm_model(embeddings, mask)
 
