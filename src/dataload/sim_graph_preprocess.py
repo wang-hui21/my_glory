@@ -114,7 +114,7 @@ def read_raw_news(cfg, file_path, mode='train'):
 
     """
     import nltk
-    nltk.download('punkt')
+    # nltk.download('punkt')
 
     data_dir = {"train": cfg.dataset.train_dir, "val": cfg.dataset.val_dir, "test": cfg.dataset.test_dir}
 

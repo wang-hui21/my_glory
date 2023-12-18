@@ -220,7 +220,7 @@ class ValidGraphDataset(TrainGraphDataset):
         candidate_input = self.news_input[candidate_index]
 
         if self.cfg.model.use_entity:
-            origin_entity = self.news_entity[candidate_index]
+            origin_entity = candidate_input[:, -3 - self.cfg.model.entity_size:-3]
             candidate_neighbor_entity = np.zeros(
                 (len(candidate_index) * self.cfg.model.entity_size, self.cfg.model.entity_neighbors), dtype=np.int64)
             for cnt, idx in enumerate(origin_entity.flatten()):

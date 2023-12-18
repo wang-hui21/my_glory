@@ -28,7 +28,7 @@ model:
   head_num: 20
   head_dim: 20
   use_graph_type: 0
-  directed: true
+  directed: false
   num_neighbors: 8
   k_hops: 2
   

@@ -150,7 +150,7 @@ def main_worker(local_rank, cfg):
     # -----------------------------------------Dataset & Model Load
     num_training_steps = int(cfg.num_epochs * cfg.dataset.pos_count / (cfg.batch_size * cfg.accumulation_steps))
     num_warmup_steps = int(num_training_steps * cfg.warmup_ratio + 1)
-    train_dataloader = load_data(cfg, mode='train', local_rank=local_rank)  # 加载训练数据
+    # train_dataloader = load_data(cfg, mode='train', local_rank=local_rank)  # 加载训练数据
     model = load_model(cfg).to(local_rank)
     optimizer = torch.optim.Adam(model.parameters(), lr=cfg.optimizer.lr)
 
@@ -169,9 +169,7 @@ def main_worker(local_rank, cfg):
         # optimizer.zero_grad(set_to_none=True)
         # scaler = amp.GradScaler()
 
-        news_graph = pickle.load(open(Path(cfg.dataset.test_dir) / "nltk_token_news.bin", "rb"))            # 加载全局新闻图
-
-        res = val(model, local_rank, cfg, news_graph)
+        res = val(model, local_rank, cfg)
         print("best_auc:", res["auc"], "best_mrr:", res['mrr'],
               "best_ndcg5:", res['ndcg5'], "best_ndcg10:", res['ndcg10'])
     else:
@@ -189,10 +187,7 @@ def main_worker(local_rank, cfg):
 
         # for _ in tqdm(range(1, cfg.num_epochs + 1), desc="Epoch"):
 
-        train_dataloader = load_data(cfg, mode='train', local_rank=local_rank)  # 加载训练数据
-
-        news_graph = pickle.load(open(Path(cfg.dataset.train_dir) / "nltk_token_news.bin", "rb"))  # 加载全局新闻图
-
+        train_dataloader = load_data(cfg, mode='train', model=model, local_rank=local_rank)  # 加载训练数据
         train(model, optimizer, scaler, scheduler, train_dataloader, local_rank, cfg, early_stopping)
 
         # file_path=os.path.join(data_dir[mode], f'behaviors{local_rank}_embeddings.pkl')

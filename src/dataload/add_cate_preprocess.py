@@ -261,9 +261,9 @@ def prepare_news_graph(cfg, mode='train'):
 
                 # record cnt & read path
                 history = line[3].split()
-                if len(history) > 1:         # 先把浏览历史的边填上，再加入类别的边
-                    long_edge = [news_dict[news_id] for news_id in history]  # 取出历史新闻的数字编号  [31529 3176 5584 30449 998....]
-                    edge_list.append(long_edge)  # 将历史列表添加到边列表中
+                # if len(history) > 1:         # 先把浏览历史的边填上，再加入类别的边
+                #     long_edge = [news_dict[news_id] for news_id in history]  # 取出历史新闻的数字编号  [31529 3176 5584 30449 998....]
+                #     edge_list.append(long_edge)  # 将历史列表添加到边列表中
 
                 cate_dict = defaultdict(list)
                 for news_id in history:

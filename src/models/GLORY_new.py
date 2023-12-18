@@ -10,7 +10,7 @@ from models.component.nce_loss import NCELoss
 from models.component.news_encoder import *
 from models.component.user_encoder import *
 import pickle
-
+from models.component.user_lstm import LSTMModel
 
 class GLORY(nn.Module):
     def __init__(self, cfg, glove_emb=None, entity_emb=None):
@@ -52,8 +52,8 @@ class GLORY(nn.Module):
         # self.click_encoder = ClickEncoder(cfg)
 
         # User Encoder
-        self.user_encoder = UserEncoder(cfg)
-
+        # self.user_encoder = UserEncoder(cfg)
+        self.user_encoder = LSTMModel(cfg)
         # Candidate Encoder
         # self.candidate_encoder = CandidateEncoder(cfg)
 
@@ -171,7 +171,8 @@ class GLORY(nn.Module):
 
         # clicked_final_emb = self.click_encoder(clicked_origin_emb, clicked_graph_emb, clicked_entity_emb)
         clicked_final_emb = torch.cat((clicked_origin_emb, clicked_graph_emb), dim=-1)
-        user_emb = self.user_encoder(clicked_final_emb)  # [1, 400]
+        mask = torch.ones(clicked_final_emb.shape[0], clicked_final_emb.shape[1], clicked_final_emb.shape[2])
+        user_emb = self.user_encoder(clicked_final_emb, mask)  # [1, 400]
 
         # ----------------------------------------- Candidate------------------------------------
 

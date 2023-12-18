@@ -103,7 +103,7 @@ def load_data(cfg, mode='train', model=None, local_rank=0):
             else:
                 entity_neighbors = None
 
-            if mode == 'val':
+            if mode in ['val', 'test']:
                 dataset = ValidGraphDataset(
                     filename=Path(data_dir[mode]) / f"behaviors_np{cfg.npratio}_{local_rank}.tsv",
                     news_index=news_index,
