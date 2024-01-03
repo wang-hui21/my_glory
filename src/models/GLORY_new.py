@@ -11,6 +11,8 @@ from models.component.news_encoder import *
 from models.component.user_encoder import *
 import pickle
 from models.component.user_lstm import LSTMModel
+from transformers import BertTokenizer
+
 
 class GLORY(nn.Module):
     def __init__(self, cfg, glove_emb=None, entity_emb=None):
@@ -25,7 +27,7 @@ class GLORY(nn.Module):
         # -------------------------- Model --------------------------
         # News Encoder
         self.local_news_encoder = NewsEncoder(cfg, glove_emb)
-
+        tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
         # GCN
         self.global_news_encoder = Sequential('x, index', [
             (GatedGraphConv(self.news_dim, num_layers=3, aggr='add'), 'x, index -> x'),
